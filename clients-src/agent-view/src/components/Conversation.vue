@@ -29,6 +29,7 @@
   const inConversation = ref(false);
   const isConnected = ref(false);
   const webhooks = ref([]);
+  const bottomEl = ref(null);
 
   const newChatMessage = ref("");
   
@@ -96,6 +97,24 @@
       
     } catch (e) { console.log("removeFromConversation error => ", e); }      
 
+  }
+
+  const sendResponse = async (response) => {
+    try {   
+  
+      console.log(response);
+          
+      let attributes = {
+        mType: 'agentChat',
+        agentMessage: true,
+        agentIdentity: agentStore.agent.identity        
+      }
+      await twilioConversation.prepareMessage().setBody(response).setAttributes(attributes).build().send();      
+      console.log("Sent Message...");
+    } catch (e) {       
+      isConnected.value = false;
+      console.log("sendMessage error => ", e); 
+    }
   }
   
   const addAgent = ref(false);
@@ -301,8 +320,8 @@
               participants.value[i].attributes = JSON.parse(JSON.parse(participants.value[i].attributes))
             }            
 
-            if (Object.keys(participants.value[i].attributes).length === 0 && participants.value[i].messagingBinding.address !== undefined) {
-              if (participants.value[i].messagingBinding.type === 'whatsapp') {
+            if (Object.keys(participants.value[i].attributes).length === 0 && participants.value[i]['attributes'].address !== undefined) {
+              if (participants.value[i]['attributes'].address === 'whatsapp') {
                 console.log("whatsapp channel...");
                 participants.value[i].attributes = JSON.parse(returnPartipantAttributes('whatsapp','enduser', participants.value[i].messagingBinding.address));                
               } else {
@@ -330,9 +349,9 @@
       let url = `${import.meta.env.VITE_DATA_URL}/conversations/conversation-messages?sid=${conversationId}`;
       const res = await fetch(url, { method: "GET", cache: "no-store", headers: {'Content-type': 'application/json'} });
       if (res.ok) {
-        let r = await res.json();                 
-        //console.log("getConversationMessages response ==> ", r);        
-        messages.value = r.reverse();
+        let r = await res.json();               
+        console.log("getConversationMessages response ==> ", r);        
+        messages.value = r;
         for (let i=0;i<messages.value.length;i++) {    
           //console.log("Message Attributes! ==> ", messages.value[i].attributes);
           if (Object.keys(messages.value[i].attributes).length === 0) {
@@ -346,7 +365,7 @@
             messages.value[i].participantAttributes = pa;
           } else {
             messages.value[i].participantAttributes = pa;
-          }          
+          }      
         }
       }
       
@@ -400,7 +419,7 @@
     isConnected.value = true;
     
     twilioConversation.on('messageAdded',message => {
-        //console.log("New Message Added ==> ", message);
+        console.log("New Message Added ==> ", message);
         
         let pa = participantAttributeHash.value[message.participantSid];
         if (pa == undefined) {
@@ -409,15 +428,16 @@
         } else {
           message.participantAttributes = pa;
         }                        
-        messages.value.unshift(message);   
+        messages.value.push(message);
+        bottomEl.value.scrollIntoView();  
     });
 
     twilioConversation.on('tokenExpired', obj => {
        console.log("Token Expired!");
+       refreshToken();
     });
       
   }
-
 
   const refreshToken = async () => {
     console.log("in refreshToken...");
@@ -425,21 +445,26 @@
     await connectToConversation();
   };       
 
-  const prependName = ref(true);
-
-  const sendMessage = async () => {                           
+  const sendMessage = async (m) => {
+    let message;
+    
     try {   
-      let m = newChatMessage.value;
+      if (!m) {
+        message = newChatMessage.value;
+      } else {
+        message = m;
+      }
+
+      console.log(message);
+
       newChatMessage.value = '...';
-      if(prependName.value) {
-        m = agentStore.agent.identity + ': ' + m; 
-      }      
+          
       let attributes = {
         mType: 'agentChat',
         agentMessage: true,
         agentIdentity: agentStore.agent.identity        
       }
-      await twilioConversation.prepareMessage().setBody(m).setAttributes(attributes).build().send();      
+      await twilioConversation.prepareMessage().setBody(message).setAttributes(attributes).build().send();      
       newChatMessage.value = '';
       console.log("Sent Message...");
     } catch (e) {       
@@ -502,9 +527,7 @@
   }
 
   onMounted(() => {
-
     getConversationResources();
-    
   });
 
 </script>
@@ -576,15 +599,11 @@
                 <button type="button" class="btn btn-sm btn-warning float-end" @click="removeFromConversation(p.sid)"><i class="bi-trash"></i></button>  
             </li>
             <li class="list-group-item text-center"> 
-              <button v-show="!showInjectChat" type="button" @click="showInjectChat = true" class="btn btn-sm btn-info">
-                Inject Chat Buttons
-              </button>
-              <div v-show="showInjectChat" class="input-group">                
+              <div class="input-group">                
                 <select class="form-select" v-model="chatButton">
                   <option v-for="cb in chatButtonStore.chatbuttons" :key="cb.data.Id" :value="cb.data" >{{ cb.data.Label }}</option>
                 </select>                
                 <button type="button" class="btn btn-sm btn-success" @click="injectChatButton()"><i class="bi-input-cursor"></i> Inject</button>          
-                <button type="button" class="btn btn-sm btn-light" @click="showInjectChat = false"><i class="bi-x"></i></button>          
               </div>                
             </li>
           </ul>            
@@ -603,47 +622,34 @@
                 </div>  
                 <p v-show="addMobileError" class="text-danger">{{addMobileErrorMsg}}</p>                  
             </li>
-          </ul>               
-          <ul class="list-group mb-3">
-            <li class="list-group-item list-group-item-success">End User WhatsApp <i class="bi-whatsapp"></i></li>
-            <li v-show="p.messagingBinding != null && p.attributes.enduser && p.attributes.whatsapp" class="list-group-item" v-for="p in participants" v-bind:key="p.sid">              
-                {{p.messagingBinding?.address}}
-                <button type="button" class="btn btn-sm btn-warning float-end" @click="removeFromConversation(p.sid)"><i class="bi-trash"></i></button>  
-            </li>            
-            <li class="list-group-item">            
-              <span v-show="!addWhatsApp">Add WhatsApp Participant</span>
-              <button v-show="!addWhatsApp" type="button" class="btn btn-sm btn-success float-end" @click="addWhatsApp = true"><i class="bi-whatsapp"></i></button>
-                <div v-show="addWhatsApp" class="input-group">
-                  <input type="text" v-model="addWhatsAppNumber" class="form-control">
-                  <button type="button" class="btn btn-sm btn-success" @click="addWhatsAppToConversation('enduser','End User')"><i class="bi-whatsapp"></i> Add</button>          
-                </div>  
-                <p v-show="addWhatsAppError" class="text-danger">{{addWhatsAppErrorMsg}}</p>                  
-            </li>
-          </ul>                    
-          <ul class="list-group mb-3">
-            <li class="list-group-item list-group-item-warning">Webhooks <i class="bi-robot"></i></li>
-            <li class="list-group-item" v-for="w in webhooks" v-bind:key="w.sid">              
-                {{w.Name}}
-                <button type="button" class="btn btn-sm btn-warning float-end" @click="removeWebhookFromConversation(w.sid)"><i class="bi-trash"></i></button>  
-            </li>
-            <li class="list-group-item">            
-              <span v-show="!addWH">Add Webhook</span>
-              <button v-show="!addWH" type="button" class="btn btn-sm btn-success float-end" @click="addWH = true"><i class="bi-robot"></i></button>
-              <div v-show="addWH" class="input-group">                
-                <select class="form-select" v-model="addWHObj">
-                  <option v-for="wh in webhookStore.webhooks" :key="wh.index" :value="wh.data" >{{ wh.data.Name }}</option>
-                </select>                
-                <button type="button" class="btn btn-sm btn-success" @click="addWebhookToConversation()"><i class="bi-robot"></i> Add</button>          
-              </div>                     
-            </li>
-          </ul>                    
-          <div class="alert alert-info text-center">
-              <button type="button" class="btn btn-sm btn-danger" @click="deleteConversation()"><i class="bi-trash"></i> Delete Conversation</button>  
-            </div>             
+          </ul>                                                   
         </div>
 
         <div class="col-9 pb-5">
 
+          <div class="rounded" style="min-height:70vh; max-height: 70vh; overflow-y: scroll;">
+            <div ref="messagesDiv" class="container-fluid pt-3 pb-3">
+              <message
+                @removeMessage="(sid) => removeMessage(sid)"
+                @send-response="(response) => sendResponse(response)"
+                v-for="m in messages"
+                v-bind:participant="m.participantAttributes"
+                v-bind:mAttributes="m.attributes"
+                v-bind:key="m.sid"
+                v-bind:mSid="m.sid"
+                v-bind:pSid="m.participantSid"
+                v-bind:dateCreated="m.dateCreated"
+                v-bind:author="m.author"
+                v-bind:content="m.body"
+                v-bind:media="m.media"
+                v-bind:mIndex="m.index"
+                v-bind:cLength="messages.length"
+                v-bind:cSid="conversationDetails.details.sid"
+              >
+              </message>
+              <div class="mt-5" ref="bottomEl"></div>
+            </div>
+          </div>
           <div v-if="inConversation">
             <div v-if="!isConnected" class="alert alert-danger">
               <button type="button" class="btn btn-sm btn-danger float-end" @click="connectToConversation()"><i class="bi-plug"></i> Connect</button>                
@@ -654,41 +660,29 @@
                 <router-link to="/agent">Refresh Token</router-link>
               </p>                                            
             </div>            
-            <div v-if="isConnected" class="alert alert-success">                
-                <form v-on:submit.prevent="submitForm">
-                  <div class="form-check">
-                    <input v-model="prependName" class="form-check-input" type="checkbox" id="flexCheckDefault">
-                    <label class="form-check-label" for="flexCheckDefault">
-                      <em>Prepend Your Name</em>
-                    </label>
-                  </div>                  
-                  <div class="input-group">    
-                    <input  v-on:keyup.enter="sendMessage()" type="text" class="form-control" v-model="newChatMessage" aria-describedby="btnGroupAddon">
-                    <button type="button" class="btn btn-primary" @click="sendMessage()"><i class="bi-lightning"></i> SEND</button>
-                  </div> 
-                </form>
-                <div v-show="!sendImage" class="mt-1 text-end">   
-                  <button @click="sendImage = true" class="btn btn-sm btn-link">                                           
-                    <i class="bi-image"></i>
-                    Send Image                      
-                  </button>
-                </div>
-                <div v-show="sendImage" class="mt-3">                  
-                  <input ref="file" v-on:change="handleFileUpload()" class="form-control form-control-sm" id="formFileSm" type="file">
-                </div>                               
-                <div v-show="sendImage" class="text-end">   
-                  <button @click="sendImage = false" class="btn btn-sm btn-link">                                           
-                    Cancel                      
-                  </button>
-                </div>                
+            <div v-if="isConnected">                
+              <form v-on:submit.prevent="submitForm">                 
+                <div class="input-group input-group-lg">    
+                  <input  v-on:keyup.enter="sendMessage()" type="text" class="form-control" v-model="newChatMessage" aria-describedby="btnGroupAddon" placeholder="Type a message...">
+                  <button type="button" class="btn btn-primary" @click="sendMessage()"><i class="bi bi-send-fill"></i></button>
+                </div> 
+              </form>
+              <div v-show="!sendImage" class="mt-1 text-end">   
+                <button @click="sendImage = true" class="btn btn-sm btn-link">                                           
+                  <i class="bi-image"></i>
+                  Send Image                      
+                </button>
+              </div>
+              <div v-show="sendImage" class="mt-3">                  
+                <input ref="file" v-on:change="handleFileUpload()" class="form-control form-control-sm" id="formFileSm" type="file">
+              </div>                               
+              <div v-show="sendImage" class="text-end">   
+                <button @click="sendImage = false" class="btn btn-sm btn-link">                                           
+                  Cancel                      
+                </button>
+              </div>                
             </div>                        
           </div>
-          <div class="bg-info rounded" style="min-height:200px;">
-            <div ref="messagesDiv" class="container-fluid pt-3 pb-3">
-              <message @removeMessage="(sid) => removeMessage(sid)" v-for="m in messages" v-bind:participant="m.participantAttributes" v-bind:mAttributes="m.attributes" v-bind:key="m.sid" v-bind:mSid="m.sid" v-bind:pSid="m.participantSid" v-bind:dateCreated="m.dateCreated" v-bind:author="m.author" v-bind:content="m.body" v-bind:media="m.media" v-bind:cSid="conversationDetails.details.sid"></message>
-            </div>
-         </div>
-         <p class="float-end"><em>{{conversationDetails.details.sid}}</em></p>
         </div>
       </div>
 
@@ -696,4 +690,4 @@
 </template>
 
 <style scoped>
-  </style>
+</style>

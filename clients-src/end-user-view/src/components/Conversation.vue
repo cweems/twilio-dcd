@@ -32,6 +32,8 @@
 
   const isChatChannel = ref(false);
 
+  const bottomEl = ref(null);
+
   const connectToConversation = async () => {        
     
     try {
@@ -57,21 +59,29 @@
         isConnected.value = true;
         isConversationEnded.value = true;
         endUserStore.logout();
-      return;
+        return;
       }
       //console.log("twilioConversation => ", twilioConversation);
       isConnected.value = true;
-      twilioConversation.on('messageAdded',message => {        
-        //console.log("New Message Added ==> ", message);
+
+      twilioConversation.on('messageAdded',message => {
+        console.log("New Message Added ==> ", message);
         let pa = participantAttributeHash.value[message.participantSid];
         if (pa == undefined) {
           pa = JSON.parse(returnPartipantAttributes('bot','bot', "Webhook"));
           message.participantAttributes = pa;
         } else {
           message.participantAttributes = pa;
-        }                
-        messages.value.unshift(message);   
+        }
+        messages.value.push(message);
+        bottomEl.value.scrollIntoView(); 
       });
+
+      twilioConversation.on('messageUpdated', obj => {
+        console.log('Message updated...')
+        getConversationMessages();
+      })
+
       twilioConversation.on('messageRemoved', obj => {        
         console.log("Message Removed from conversation...");
         getConversationMessages();
@@ -82,6 +92,7 @@
         console.log("Token Expired!");
         isConnected.value = false;
         isTokenExpired.value = true;
+        refreshToken();
     });    
 
     conversationsClient.on('disconnected', obj => {
@@ -94,7 +105,8 @@
         console.log("Conversations removed!");
         isConversationEnded.value = true;
         endUserStore.logout();
-    });     
+    });
+
     await getConversationMessages(); 
   }
 
@@ -109,7 +121,21 @@
       console.log ("failed to refresh token => ", e);
     }
 
-  };   
+  };
+
+  const generateAutoResponse = (message) => {
+
+    if (message.includes('in stock', 'do you have', 'is available')) {
+      return ["Certainly, let me check.", "Sure, one moment.", "Checking your order."]
+    } else if (message.includes('order status', 'how long', 'on the way')) {
+      return ["We're still picking your order, but it will arrive shortly.", "Your driver is on their way."]
+    } else if (message.includes('thank', 'great', 'appreciate')) {
+      return ["You're welcome.", "No problem."]
+    } else {
+      return null;
+    }
+
+  }
 
   const sendMessage = async () => {                           
     let m = newChatMessage.value;
@@ -117,6 +143,7 @@
     let attributes = {
         mType: 'clientChat',
         author: endUserStore.endUser.name,
+        suggestedResponses: generateAutoResponse(m)
     }
     await twilioConversation.prepareMessage().setBody(m).setAttributes(attributes).build().send();              
     newChatMessage.value = '';
@@ -197,14 +224,14 @@
   }      
 
   const getConversationMessages = async () => {
-    
+    console.log('Getting conversation messages...')
     try {                
       let url = `${import.meta.env.VITE_DATA_URL}/conversations/conversation-messages?sid=${conversationId}`;
       const res = await fetch(url, { method: "GET", cache: "no-store", headers: {'Content-type': 'application/json'} });
       if (res.ok) {
         let r = await res.json();
         //console.log("getConversationMessages response ==> ", r);        
-        messages.value = r.reverse();
+        messages.value = r;
         for (let i=0;i<messages.value.length;i++) {  
           if (Object.keys(messages.value[i].attributes).length === 0) {
             messages.value[i].attributes = {attributes:'none'}
@@ -235,7 +262,31 @@
         person: o.person,
         style: o.style        
       }
-      await twilioConversation.prepareMessage().setBody("<Chat Button Response>").setAttributes(attributes).build().send();              
+      console.log(o)
+      await twilioConversation.prepareMessage().setBody("<Chat Button Response>").setAttributes(attributes).build().send();
+      
+      let messageToUpdate = [];
+      let conversationMessages = await twilioConversation.getMessages()
+
+      while (messageToUpdate.length < 1) {
+        let anchor = 0;
+        
+        messageToUpdate = conversationMessages.items.filter((message) => {
+          return message.state.sid === o.messageSid
+        })
+
+        anchor += 30
+
+        conversationMessages = await twilioConversation.getMessages(30, anchor)
+      }
+      let prevAttributes = messageToUpdate[0].attributes;
+      prevAttributes['showButtons'] = false;
+      await messageToUpdate[0].updateAttributes(prevAttributes);
+      await getConversationMessages();
+
+      console.log(messageToUpdate[0], 'DONE')
+      
+      //debugger;
       //console.log("Returned Chat Button Response...");
     } catch (e) {       
       isConnected.value = false;
@@ -262,12 +313,9 @@
 </script>
 
 <template>
-    <div class="container">      
+    <div class="container-fluid">      
       <div class="row row-height mt-2" >
-
-        <div class="col-1 pb-5">&nbsp;</div>
-        <div class="col-10 pb-5">
-          <p class="pb-0 mb-0 fs-4 fw-bold fst-italic">{{conversationDetails.details.friendlyName}}</p>                        
+        <div class="col-12">
           <div class="pb-5">
             <div v-if="inConversation">
               <div v-show="!isConnected" class="alert alert-danger">
@@ -302,55 +350,82 @@
                   Home
                 </router-link>
               </div>              
-              <div v-if="isConnected && !isConversationEnded" class="alert" :class="{'alert-warning':isChatChannel,'alert-primary':!isChatChannel}">
-                  <form v-on:submit.prevent="submitForm">
-                    <div class="input-group">    
-                      <input  v-on:keyup.enter="sendMessage()" type="text" class="form-control" v-model="newChatMessage" aria-describedby="btnGroupAddon">
-                      <button type="button" class="btn btn-primary" @click="sendMessage()"><i class="bi-lightning"></i> SEND</button>
-                    </div>              
-                  </form>
-                  <div v-show="!sendImage" class="mt-1 text-end">   
-                    <button @click="sendImage = true" class="btn btn-sm btn-link">                                           
-                      <i class="bi-image"></i>
-                      Send Image                      
-                    </button>
-                  </div>
-                  <div v-show="sendImage" class="mt-3">                  
-                    <input ref="file" v-on:change="handleFileUpload()" class="form-control form-control-sm" id="formFileSm" type="file">
-                  </div>                               
-                  <div v-show="sendImage" class="text-end">   
-                    <button @click="sendImage = false" class="btn btn-sm btn-link">                                           
-                      Cancel                      
-                    </button>
-                  </div>                                  
-              </div>                        
             </div>
-            <div class="border rounded" :class="{'bg-light':isChatChannel,'bg-warning':!isChatChannel}" style="min-height:200px;">
-              <p v-if="isChatChannel" class="mt-2 ms-2 mb-2 fs-4 fw-bold text-end">
-                {{endUserStore.endUser.name}}
-                <img :src="endUserStore.endUser.avatar" class="rounded me-2" />                                                
-              </p>
-              <p v-else class="ms-2 mb-2 fs-4 fw-bold">
-                <img v-if="isChatChannel" :src="endUserStore.endUser.avatar" class="rounded float-start me-2" />                
-                <i v-else class="bi-person-workspace"></i>
-                {{endUserStore.endUser.name}}
-              </p>              
-              <div v-if="!isChatChannel" ref="messagesDiv" class="container-fluid pt-3 pb-3">
-                <message @sendAnswer="(o) => sendAnswer(o)" v-for="m in messages" v-bind:participant="m.participantAttributes" v-bind:mAttributes="m.attributes" v-bind:key="m.sid" v-bind:mSid="m.sid" v-bind:pSid="m.participantSid" v-bind:dateCreated="m.dateCreated" v-bind:author="m.author" v-bind:content="m.body" v-bind:media="m.media" v-bind:cSid="conversationDetails.details.sid"></message>                
+            <div class="message-container">
+              <div class="text-center">
+                <p class="pb-0 mb-0 fst-italic">You are now chatting with your Safeway shopper about {{conversationDetails.details.friendlyName}}</p>                        
               </div>
+              <div v-if="!isChatChannel" ref="messagesDiv" class="container-fluid pt-3 pb-3">
+                <message
+                  @sendAnswer="(o) => sendAnswer(o)"
+                  v-for="m in messages"
+                  v-bind:participant="m.participantAttributes"
+                  v-bind:mAttributes="m.attributes"
+                  v-bind:key="m.sid"
+                  v-bind:mSid="m.sid"
+                  v-bind:pSid="m.participantSid"
+                  v-bind:dateCreated="m.dateCreated"
+                  v-bind:author="m.author"
+                  v-bind:content="m.body"
+                  v-bind:media="m.media"
+                  v-bind:cSid="conversationDetails.details.sid"
+                ></message>                
+              </div>
+              <div class="mt-5" ref="bottomEl"></div>
               <div v-if="isChatChannel" ref="messagesDiv" class="container-fluid pt-3 pb-3">
                 <chat-message @sendAnswer="(o) => sendAnswer(o)" v-for="m in messages" v-bind:participant="m.participantAttributes" v-bind:mAttributes="m.attributes" v-bind:key="m.sid" v-bind:mSid="m.sid" v-bind:pSid="m.participantSid" v-bind:dateCreated="m.dateCreated" v-bind:author="m.author" v-bind:content="m.body" v-bind:media="m.media" v-bind:cSid="conversationDetails.details.sid"></chat-message>                
               </div>              
             </div>
-            <p class="float-end"><em>{{conversationDetails.details.sid}}</em></p>                        
+            <div v-if="isConnected && !isConversationEnded" class="mt-4">
+                <form v-on:submit.prevent="submitForm">
+                  <div class="input-group input-group-lg">    
+                    <input  v-on:keyup.enter="sendMessage()" type="text" placeholder="Type a message..." class="form-control" v-model="newChatMessage" aria-describedby="btnGroupAddon">
+                    <button type="button" class="btn btn-primary" @click="sendMessage()"><i class="bi-send-fill"></i></button>
+                  </div>              
+                </form>
+                <div v-show="sendImage" class="mt-3">                  
+                  <input ref="file" v-on:change="handleFileUpload()" class="form-control form-control-sm" id="formFileSm" type="file">
+                </div>                               
+                <div v-show="sendImage" class="text-end">   
+                  <button @click="sendImage = false" class="btn btn-sm btn-link">                                           
+                    Cancel                      
+                  </button>
+                </div>                                  
+            </div>                        
           </div>
-
-
         </div>
       </div>
-
     </div>
 </template>
 
 <style scoped>
-  </style>
+  .message-container {
+    height: 70vh;
+    overflow-y: scroll;
+  }
+  .message {
+      border-radius: 25px;
+      font-weight: 400;
+      color: #341A1F;
+      background-color: #FCE6E3;
+
+      &.customer {
+          background-color: #FAF8F7;
+      }
+  }
+
+  .bi-trash {
+      color: #712329;
+  }
+
+  .button-message {
+      background-color: #FAF8F7;
+      border-radius: 10px;
+  }
+
+  .product-image {
+      width: 75px;
+      height: auto;
+      border-radius: 50px;
+  }
+</style>

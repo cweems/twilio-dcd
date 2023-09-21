@@ -99,18 +99,14 @@
       <table class="table table-striped mt-4 mb-5 fs-4">
         <thead>
           <tr>
-            <th class="text-center">Friendly Name</th>          
-            <th class="text-center">Type</th>          
-            <th class="text-center">Chat ID</th>
+            <th class="text-center">Order</th>                  
             <th class="text-center">Date Created</th>
             <th class="text-center">&nbsp;</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="c in conversations" v-bind:key="c.sid">            
-            <td class="text-center">{{c.friendlyName}}</td>          
-            <td class="text-center">{{c.attributes.conversationType}}</td>          
-            <td class="text-center">{{c.sid}}</td>          
+            <td class="text-center">{{c.friendlyName}}</td>                    
             <td class="text-center">{{formatDate(c.dateCreated)}}</td>          
             <td class="text-center">                
                 <router-link :to="{ name: 'conversation', params: { sid: c.sid } }" custom v-slot="{ navigate }">
@@ -129,7 +125,7 @@
 
       <div class="row pb-5">
         <div class="col-6">
-          <button v-show="!addConversation" type="button" class="btn btn-info" @click="addConversation = true">
+          <button v-show="!addConversation" type="button" class="btn btn-secondary" @click="addConversation = true">
             <i class="bi-plus-circle-fill me-1"></i>                 
             Create New Conversation
           </button>

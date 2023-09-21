@@ -19,7 +19,7 @@ exports.handler = async function(context, event, callback) {
     client.conversations.conversations
         .create({
             messagingServiceSid: context.MESSAGING_SERVICE_SID,
-            friendlyName: event.payload.conversationName,
+            friendlyName: `Order ${(""+Math.random()).substring(2,7)}`,
             attributes: JSON.stringify(event.payload.attributes)
         })        
         .then(conversation => {

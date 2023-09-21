@@ -5,6 +5,7 @@ import LoginView from '../views/LoginView.vue'
 import AgentView from '../views/AgentView.vue'
 import ConversationsView from '../views/ConversationsView.vue'
 import ConversationView from '../views/ConversationView.vue'
+import CurrentOrderView from '../views/CurrentOrderView.vue'
 
 import { useListStore } from '../stores/listStore'
 
@@ -15,7 +16,8 @@ const router = createRouter({
     { name: 'login', path: '/login', component: LoginView},        
     { name: 'agent', path: '/agent', component: AgentView},
     { name: 'conversations', path: '/conversations', component: ConversationsView},
-    { name: 'conversation', path: '/conversation/:sid', component: ConversationView}            
+    { name: 'conversation', path: '/conversation/:sid', component: ConversationView},
+    { name: 'current-order', path: '/current-order', component: CurrentOrderView} 
   ]
 })
 

@@ -1,78 +1,80 @@
 <script>
-    import { ref, computed, onMounted, toRaw } from 'vue'
-    import { formatDate } from '../composables/formatDate.js'
-    import { formatJustTime } from '../composables/formatJustTime.js'
-    import { formatAuthor } from '../composables/formatAuthor.js'
-    import { getMediaUrl } from '../composables/getMediaUrl.js'
-    import { useMessageComputed } from '../composables/messageComputed.js'
-    import { useEndUserStore } from '../stores/endUserStore' 
+import { ref, computed, onMounted, toRaw } from 'vue'
+import { formatDate } from '../composables/formatDate.js'
+import { formatJustTime } from '../composables/formatJustTime.js'
+import { formatAuthor } from '../composables/formatAuthor.js'
+import { getMediaUrl } from '../composables/getMediaUrl.js'
+import { useMessageComputed } from '../composables/messageComputed.js'
+import { useEndUserStore } from '../stores/endUserStore'
 
-    export default {
-    
-        props: ['author','content','dateCreated','cSid','participant', 'mSid', 'pSid','media', 'mAttributes'],
-        setup(props, ctx) {            
+export default {
 
-            const endUserStore = useEndUserStore();
+    props: ['author', 'content', 'dateCreated', 'cSid', 'participant', 'mSid', 'pSid', 'media', 'mAttributes'],
+    setup(props, ctx) {
 
-            const author = props.author;
-            const content = props.content;
-            const media = props.media;
-            const dateCreated = props.dateCreated;
-            const cSid = props.cSid;
-            const mSid = props.mSid;
-            const pSid = props.pSid;
-            const mAttributes = props.mAttributes;
-            const participant = props.participant;
+        const endUserStore = useEndUserStore();
 
-            const imageUrl = ref("/placeholder.png");
+        const author = props.author;
+        const content = props.content;
+        const media = props.media;
+        const dateCreated = props.dateCreated;
+        const cSid = props.cSid;
+        const mSid = props.mSid;
+        const pSid = props.pSid;
+        const mAttributes = props.mAttributes;
+        const participant = props.participant;
 
-            let { isChatButton, isCustomer, isChat, isBot, isAgent, isSms, isWhatsapp, isMedia } = useMessageComputed(participant, author, mAttributes, cSid, content, media)
+        const imageUrl = ref("/placeholder.png");
 
-            onMounted(async () => {
-                if (content === null && media !== null) {
-                    let mediaSid = null;                    
-                    
-                    let mcopy = toRaw(media);
-                    if (mcopy[0] !== undefined) {
-                        mediaSid = mcopy[0].sid;
-                    } else if (mcopy.state !== undefined) {
-                        mediaSid = mcopy.state.sid;
-                    }
+        let { isChatButton, isCustomer, isChat, isBot, isAgent, isSms, isWhatsapp, isMedia } = useMessageComputed(participant, author, mAttributes, cSid, content, media)
 
-                    if (mediaSid !== null && mediaSid !== undefined) {
-                        imageUrl.value = await getMediaUrl(mediaSid);    
-                    }
+        onMounted(async () => {
+            if (content === null && media !== null) {
+                let mediaSid = null;
 
-                }                
-            });
+                let mcopy = toRaw(media);
+                if (mcopy[0] !== undefined) {
+                    mediaSid = mcopy[0].sid;
+                } else if (mcopy.state !== undefined) {
+                    mediaSid = mcopy.state.sid;
+                }
 
-            function answerQuestion(id,title,answer,style) {                
-                alert(`Optionally trigger action in web browser.\n\nfn("${endUserStore.endUser.name}","${id}","${title}","${answer}")`)                
-                ctx.emit('sendAnswer', {id:id,title:title,answer:answer,person:endUserStore.endUser.name,style});                
-            }
-
-            const getAvatar = computed(() => {
-                if (participant !== undefined && participant.avatar !== undefined && participant.avatar !== '') {
-                    return participant.avatar;
-                } else {
-                    return "https://picsum.photos/id/237/50";
-                }        
-            });            
-            
-            return {
-                author, content, dateCreated, participant,
-                mSid, pSid, isMedia, mAttributes, imageUrl,
-                isChatButton, isSms, isChat, isCustomer, isBot, isWhatsapp, isAgent,
-                formatJustTime:formatJustTime, formatAuthor:formatAuthor,
-                answerQuestion, getAvatar
+                if (mediaSid !== null && mediaSid !== undefined) {
+                    imageUrl.value = await getMediaUrl(mediaSid);
+                }
 
             }
+        });
+
+        function answerQuestion(id, title, answer, style, mAttributes) {
+            console.log({mAttributes})
+            console.log('ChatMessage - Answer Question')
+            //alert(`Optionally trigger action in web browser.\n\nfn("${endUserStore.endUser.name}","${id}","${title}","${answer}")`)
+            ctx.emit('sendAnswer', { id: id, title: title, answer: answer, person: endUserStore.endUser.name, style });
+        }
+
+        const getAvatar = computed(() => {
+            if (participant !== undefined && participant.avatar !== undefined && participant.avatar !== '') {
+                return participant.avatar;
+            } else {
+                return "https://picsum.photos/id/237/50";
+            }
+        });
+
+        return {
+            author, content, dateCreated, participant,
+            mSid, pSid, isMedia, mAttributes, imageUrl,
+            isChatButton, isSms, isChat, isCustomer, isBot, isWhatsapp, isAgent,
+            formatJustTime: formatJustTime, formatAuthor: formatAuthor,
+            answerQuestion, getAvatar
+
         }
     }
+}
 
 </script>
 <template>
-    <div>        
+    <div>
         <!--<p>
             participant => {{participant}}<br />
             isCustomer => {{isCustomer}}<br />
@@ -90,31 +92,47 @@
                     <td class="align-top" style="width:50px"><img :src="getAvatar" class="rounded p-0" /></td>
                     <td class="align-top pt-0">
                         <p class="pt-0 pb-0 mb-1 lh-1">
-                            <span class="pt-0 fw-bold fs-4">{{author}}</span>
-                            <span class="pt-0 fs-5 ms-2">{{formatJustTime(dateCreated)}}</span>                            
+                            <span class="pt-0 fw-bold fs-4">{{ author }}</span>
+                            <span class="pt-0 fs-5 ms-2">{{ formatJustTime(dateCreated) }}</span>
                         </p>
-                        <p v-if="!isMedia" class="pt-0 lead">{{content}}</p>
-                        <p v-if="isMedia"  class="pt-0 lead"><img :src="imageUrl" style="max-height:300px;max-width:300px;" class="img-fluid rounded" /></p>
+                        <p v-if="!isMedia" class="pt-0 lead">{{ content }}</p>
+                        <p v-if="isMedia" class="pt-0 lead"><img :src="imageUrl" style="max-height:300px;max-width:300px;"
+                                class="img-fluid rounded" /></p>
                     </td>
                 </tr>
-            </table>  
-        </div>  
-        <div v-if="isChatButton" class="text-start ms-4 mb-4">                                  
+            </table>
+        </div>
+        <div v-if="isChatButton" class="text-start ms-4 mb-4">
             <div v-if="mAttributes.mType === 'chatButton'">
-                <h5>{{mAttributes.question}}</h5>
+                <h5>{{ mAttributes.question }}</h5>
+                <div class="mb-4">
+                    <div class="mb-4">
+                        <p class="text-secondary">Item out of stock:</p>
+                        <img class="product-image"
+                            src="https://images.albertsons-media.com/is/image/ABS/960041097-ECOM?$ng-ecom-pdp-tn$&defaultImage=Not_Available" />
+                        <p class="p-4 d-inline">Pepperidge Farm Goldfish Cheddar Cheese Crackers - 9-1 Oz</p>
+                    </div>
+                    <div class="mb-2">
+                        <p class="text-secondary">Substitute with:</p>
+                        <img class="product-image"
+                            src="https://images.albertsons-media.com/is/image/ABS/960049994?$ng-ecom-pdp-tn$&defaultImage=Not_Available" />
+                        <p class="p-4 d-inline">Pepperidge Farm Goldfish Cheddar Cheese Crackers - 30 Oz</p>
+                    </div>
+                </div>
                 <div class="btn-group d-flex " role="group" aria-label="...">
-                    <button @click="answerQuestion(mAttributes.id,mAttributes.question,b.value,b.style)" v-for="b in mAttributes.options" v-bind:key="b.value" class="btn border" :class="[b.style]">{{b.label}}</button>
-                </div>            
+                    <button @click="answerQuestion(mAttributes.sid, mAttributes.question, b.value, b.style, mAttributes)"
+                        v-for="b in mAttributes.options" v-bind:key="b.value" class="btn border"
+                        :class="[b.style]">{{ b.label }}</button>
+                </div>
             </div>
             <div v-if="mAttributes.mType === 'chatButtonResponse'">
                 <h5>
-                    <span class="fst-italic">{{mAttributes.title}}</span> {{mAttributes.person}} replied:                
-                    <button disabled class="btn" :class="[mAttributes.style]">{{mAttributes.answer}}</button>
-                </h5>                            
-            </div>            
-        </div>        
+                    <span class="fst-italic">{{ mAttributes.title }}</span> {{ mAttributes.person }} replied:
+                    <button disabled class="btn" :class="[mAttributes.style]">{{ mAttributes.answer }}</button>
+                </h5>
+            </div>
+        </div>
 
-    </div>
-</template>
+    </div></template>
 
 

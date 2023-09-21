@@ -119,18 +119,18 @@
         //console.log("in getConversations and r => ", r);
         conversations.value = r;
         for (let i=0;i<conversations.value.length;i++) {                
-          if (Object.keys(conversations.value[i].attributes).length > 0) {
-            conversations.value[i].attributes = JSON.parse(conversations.value[i].attributes);              
-          };          
-          if (conversations.value[i].attributes.conversationType === undefined || conversations.value[i].attributes.conversationType === '') {
-            conversations.value[i].attributes.conversationType = "Support";
-          }          
-          if (conversations.value[i].friendlyName === null || conversations.value[i].friendlyName === '') {
-            conversations.value[i].friendlyName = "no name...";
-          }
-          if (conversations.value[i].attributes.conversationType === 'ChatChannel') {
-            conversationsFiltered.value.push(conversations.value[i]);
-          }
+          conversationsFiltered.value.push(conversations.value[i]);
+          // if (Object.keys(conversations.value[i].attributes).length > 0) {
+          //   conversations.value[i].attributes = JSON.parse(conversations.value[i].attributes);              
+          // };          
+          // if (conversations.value[i].attributes.conversationType === undefined || conversations.value[i].attributes.conversationType === '') {
+          //   conversations.value[i].attributes.conversationType = "Support";
+          // }          
+          // if (conversations.value[i].friendlyName === null || conversations.value[i].friendlyName === '') {
+          //   conversations.value[i].friendlyName = "no name...";
+          // }
+          // if (conversations.value[i].attributes.conversationType === 'ChatChannel') {
+          // }
         };         
 
       }

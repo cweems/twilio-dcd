@@ -45,9 +45,16 @@
                 }                
             });
 
-            function answerQuestion(id,title,answer,style) {                
-                alert(`Optionally trigger action in web browser.\n\nfn("${endUserStore.endUser.name}","${id}","${title}","${answer}")`)                
-                ctx.emit('sendAnswer', {id:id,title:title,answer:answer,person:endUserStore.endUser.name,style});                
+            function answerQuestion(id,title,answer,style, messageSid) {
+                console.log({mAttributes})                
+                ctx.emit('sendAnswer', {
+                    id: id, 
+                    title: title,
+                    answer: answer,
+                    person: endUserStore.endUser.name, 
+                    style,
+                    messageSid
+                });                
             }
             
             return {
@@ -75,29 +82,40 @@
             isChatButton => {{isChatButton}} 
         </p>-->
 
-        <div v-if="!isChatButton" class="bg-warning text-start mb-2" :class="{ 'text-start': isCustomer,'text-end': !isCustomer  }">                                  
-            <span class="fs-4 fw-bold badge text-wrap" :class="{ 'text-start': isCustomer,'text-end': !isCustomer,'bg-light': isCustomer,'text-dark': isCustomer, 'bg-success': isAgent, 'bg-secondary': isBot  }">
-                <i v-if="isSms" class="bi-phone"></i> 
-                <i v-if="isChat" class="bi-person-workspace"></i>                
-                <i v-if="isWhatsapp" class="bi-whatsapp"></i> 
-                <i v-if="isBot" class="bi-robot"></i> 
-                <span v-if="!isMedia" class="ms-2">{{content}}</span>
+        <div v-if="!isChatButton" class="text-start mb-2" :class="{ 'text-start': isCustomer,'text-end': !isCustomer  }">                                  
+            <span class="message fs-4 badge text-wrap" :class="{ 'text-start': isCustomer,'text-end': !isCustomer,'customer': isCustomer,'customer': isCustomer, 'agent': isAgent, 'bg-secondary': isBot  }">
+                <span v-if="!isMedia">{{content}}</span>
                 <span v-if="isMedia"><img :src="imageUrl" style="max-height:300px;max-width:300px;" class="ms-2 img-fluid rounded" /></span>
             </span>
             <p class="mt-1">
-                <small><span class="fst-italic">{{author}} - {{formatDate(dateCreated)}}</span></small>
+                <small>
+                    <span v-if="isCustomer" class="fst-italic">{{author}} - {{formatDate(dateCreated)}}</span>
+                    <span v-else class="fst-italic">Shopper - {{formatDate(dateCreated)}}</span>
+                </small>
             </p>            
         </div>  
-        <div v-if="isChatButton" class="text-start mb-4">                                  
+        <div v-if="isChatButton" class="button-message text-start mb-4 p-4">                                  
             <div v-if="mAttributes.mType === 'chatButton'">
                 <h5>{{mAttributes.question}}</h5>
-                <div class="btn-group d-flex " role="group" aria-label="...">
-                    <button @click="answerQuestion(mAttributes.id,mAttributes.question,b.value,b.style)" v-for="b in mAttributes.options" v-bind:key="b.value" class="btn border" :class="[b.style]">{{b.label}}</button>
+                <div class="mb-4">
+                    <div class="mb-4">
+                        <p class="text-secondary">Item out of stock:</p>
+                        <img class="product-image" src="https://images.albertsons-media.com/is/image/ABS/960041097-ECOM?$ng-ecom-pdp-tn$&defaultImage=Not_Available" />
+                        <p class="p-4 d-inline">Pepperidge Farm Goldfish Cheddar Cheese Crackers - 9-1 Oz</p>
+                    </div>
+                    <div class="mb-2">
+                        <p class="text-secondary">Substitute with:</p>
+                            <img class="product-image" src="https://images.albertsons-media.com/is/image/ABS/960049994?$ng-ecom-pdp-tn$&defaultImage=Not_Available" />
+                            <p class="p-4 d-inline">Pepperidge Farm Goldfish Cheddar Cheese Crackers - 30 Oz</p>
+                    </div>
+                </div>
+                <div v-if="mAttributes.showButtons !== false" class="btn-group d-flex " role="group" aria-label="...">
+                    <button @click="answerQuestion(mAttributes.id,mAttributes.question,b.value,b.style, mSid)" v-for="b in mAttributes.options" v-bind:key="b.value" class="btn border" :class="[b.style]">{{b.label}}</button>
                 </div>            
             </div>
             <div v-if="mAttributes.mType === 'chatButtonResponse'">
                 <h5>
-                    <span class="fst-italic">{{mAttributes.title}}</span> {{mAttributes.person}} replied:                
+                    {{mAttributes.person}} replied:                
                     <button disabled class="btn" :class="[mAttributes.style]">{{mAttributes.answer}}</button>
                 </h5>                            
             </div>            
@@ -105,5 +123,27 @@
 
     </div>
 </template>
+<style scoped>
+    .message {
+      border-radius: 50px;
+      font-weight: 400;
+      color: #341A1F;
+      background-color: #FCE6E3;
+
+      &.customer {
+          background-color: #FAF8F7;
+      }
+    }
+
+    .button-message {
+        background-color: #FAF8F7;
+        border-radius: 10px;
+    }
+    .product-image {
+        width: 75px;
+        height: auto;
+        border-radius: 50px;
+    }
+</style>
 
 
